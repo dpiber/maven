@@ -2,7 +2,7 @@
 
 Repo: https://github.com/apache/maven  
 Cel: znaleźć kontrakty używane między warstwami (API ↔ impl ↔ compat ↔ CLI) na podstawie grafu zależności.  
-Uruchamiaj po `context/map/artifact-1-territory.md` (masz już ranking aktywności).  
+Uruchamiaj po `../../../../context/map/artifact-1-territory.md` (masz już ranking aktywności).  
 Stack: Java / Maven multi-module — preferuj `jdeps` (JDK) i `mvn dependency:*`; nie zakładaj dependency-cruiser.
 
 ## Wymagania konieczne

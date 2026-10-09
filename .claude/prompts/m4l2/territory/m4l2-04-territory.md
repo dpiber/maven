@@ -6,7 +6,7 @@ Uruchamiaj jako ostatni prompt kroku 1 (po `m4l2-01`…`m4l2-03`).
 
 ## Wymagania konieczne
 
-- **Nie używaj skilli 10x** (np. `/10x-repo-map`, `/10x-init`, `/10x-research` ani żadnego innego skillu z paczki 10xDevs). Wykonaj zadanie ręcznie: komendy CLI + interpretacja w tej sesji. Katalog `context/map/` utwórz zwykłym `mkdir` / zapisem pliku — bez `/10x-init`.
+- **Nie używaj skilli 10x** (np. `/10x-repo-map`, `/10x-init`, `/10x-research` ani żadnego innego skillu z paczki 10xDevs). Wykonaj zadanie ręcznie: komendy CLI + interpretacja w tej sesji. Katalog `../../../../context/map` utwórz zwykłym `mkdir` / zapisem pliku — bez `/10x-init`.
 
 ```text
 Wymagania konieczne: nie używaj skilli 10x (w tym /10x-repo-map, /10x-init i pozostałych). Pracuj ad hoc na CLI i historii gita; katalog context/map/ utwórz bez /10x-init.
