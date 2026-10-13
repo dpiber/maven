@@ -2,13 +2,14 @@
 date: 2026-10-13T15:24:44+0000
 researcher: Dominik Piber
 git_commit: 3b94a4f31bd4c10a2789b1dced5f58e906c0865c
-branch: docs/repo-map
+branch: docs/research-deep-focus
 repository: apache/maven
 topic: "Przepływ budowania modelu POM (model-builder-flow-analysis)"
-tags: [research, codebase, model-builder, maven-impl, maven-core, compat, profiles, parent, ci-friendly]
+tags: [research, codebase, model-builder, maven-impl, maven-core, compat, profiles, parent, ci-friendly, ast-grep]
 status: complete
 last_updated: 2026-10-13
 last_updated_by: Dominik Piber
+ast_grep_verified: 2026-10-13
 ---
 
 # Research: Przepływ budowania modelu POM (M3↔M4)
@@ -16,7 +17,7 @@ last_updated_by: Dominik Piber
 **Date**: 2026-10-13T15:24:44+0000  
 **Researcher**: Dominik Piber  
 **Git Commit**: `3b94a4f31bd4c10a2789b1dced5f58e906c0865c`  
-**Branch**: `docs/repo-map`  
+**Branch**: `docs/research-deep-focus`  
 **Repository**: apache/maven  
 
 ## Research Question
@@ -133,7 +134,7 @@ ITS (`its/core-it-suite`) to **tanie** sprzężenie weryfikacyjne (~42% commitó
 | `DefaultProjectBuilder` + RequestType | Zachowanie reactora vs consumer | kruche + compile |
 | Twin compat + resolver-provider (legacy ModelBuilder) | Brak POM→impl; wysokie co-change gdy most się rusza | **kruche** |
 | Root POM / Dependabot | Breadth wersji | tanie / szum |
-| Zewnętrzne pluginy / ClassRealm / SPI runtime | Poza jdeps i reactor | **unknown** |
+| Zewnętrzne pluginy / ClassRealm / SPI runtime | Poza jdeps i reactor; AST: `ModelParser` w `DefaultModelProcessor`, nie DMB; ServiceLoader tylko w javadoc | **unknown** (nie „brak”) |
 
 ### 5. Co nie jest długiem tej ścieżki
 
@@ -192,7 +193,7 @@ jdeps bytecode w tym przebiegu **nie** przejęty (JPMS `Module … not found`); 
 - Warstwy trzymają DAG `api ← impl ← core ← cli`; `compat/*` + `maven-support` równolegle — zgodne z mapą.
 - „Persistencja” w domenie modelu = indeks projektów reactora + sesja, nie magazyn trwały.
 - Dwa `DefaultProjectBuilder`: legacy `org.apache.maven.project` (reactor) i facade `internal.impl` — prior map wymieniał jeden; to **map gap**, nie błąd zachowania.
-- SPI `ModelParser` / `ModelTransformer`: wstrzykiwane (`@Named` Map/List); dokumentacja wspomina ServiceLoader — pełny wiring ClassRealm/extensions = **unknown**.
+- SPI: `ModelTransformer` → `List` w `@Inject` ctor `impl…DefaultModelBuilder` (`:163`, `:186`); `ModelParser` → `Map<String, ModelParser>` w `DefaultModelProcessor` (`:72–75`), **nie** w samym DefaultModelBuilder. Javadoc `ModelTransformer` / `SpiService` wspomina ServiceLoader; **zero** call-site `ServiceLoader` w plikach SPI — ClassRealm/extensions = **unknown** (nie „brak wywołań”).
 
 ## Historical Context (from prior changes)
 
@@ -213,8 +214,38 @@ Brak innych `context/changes/**/research.md` w tym repo w momencie badania.
 5. Wpływ breaking zmian `api.ModelBuilder*` / RequestType na pluginy ekosystemu — poza reactor; japicmp nie robiony (**unknown** mapy, nadal).
 6. Pełna kolejność ParentFrame / BOM import / external parent cache — wejścia potwierdzone, detale skrócone (**partial**).
 
+## Structural verification (`ast-grep` + `rg`)
+
+Weryfikacja twierdzeń strukturalnych z tego raportu (Java, tylko odczyt; `ast-grep` 0.50.0). Każde **zero** z AST potwierdzone `rg`.
+
+| Twierdzenie | Werdykt | Evidence |
+|-------------|---------|----------|
+| Call graph: `DefaultProjectBuilder` → `api.ModelBuilder` (nie odwrotnie) | **potwierdzone** | `modelBuilderSession.build` w `project/DefaultProjectBuilder.java:492`, `:679`; **zero** `\bProjectBuilder\b` w `impl…/DefaultModelBuilder.java` (`rg`) |
+| Dwa produkcyjne `DefaultModelBuilder` (impl + compat twin) | **potwierdzone** (+ doprecyzowanie) | `impl…/DefaultModelBuilder.java:136` (`implements ModelBuilder` api); `compat/…/DefaultModelBuilder.java:100` + `@Deprecated(since = "4.0.0")` `:99`. Dodatkowo: nested `DefaultModelBuilderRequest` w api (`ModelBuilderRequest.java:296`) — **nie** twin pipeline |
+| Compat twin **nie** na hot path reactora `mvn` | **potwierdzone** | **zero** importu `model.building.ModelBuilder` w `maven-core` main (`rg`); core woła `api.services.ModelBuilder` (`DefaultProjectBuilder.java:72–75`, `:118`). Legacy consumer: `compat/maven-resolver-provider/…/DefaultArtifactDescriptorReader.java:34` |
+| Dwa `DefaultProjectBuilder` (reactor + facade) | **potwierdzone** | `project/DefaultProjectBuilder.java:115`; `internal/impl/DefaultProjectBuilder.java:57` deleguje `builder.build(…)` `:90`, `:94` |
+| Reactor: `newSession()` + `BUILD_PROJECT` + `session.build` | **potwierdzone** (+ doprecyzowanie call-site’ów) | `newSession`: `DefaultProjectBuilder.java:351`. Setter `BUILD_PROJECT` w main: `:674`, `:1237` **oraz** `AbstractUpgradeStrategy.java:198` (mvnup — poza centrum). `modelBuilderSession.build` w main: tylko `:492`, `:679` |
+| `BUILD_PROJECT` → `buildBuildPom()`, inaczej `buildEffectiveModel` | **potwierdzone** | `DefaultModelBuilder.java:241–247` (`session.buildBuildPom()` / `buildEffectiveModel`) |
+| CI-friendly w `doReadFileModel` via `getEnhancedProperties` + `replaceCiFriendlyVersion` | **potwierdzone** | definicje `:842`, `:852`, `:1764`; użycie `:1938–1946` (oraz druga gałąź `:1975+`) |
+| Hub ~3450 LOC | **potwierdzone** | `wc -l` → **3451** linii `impl…/DefaultModelBuilder.java` |
+| `DefaultModelBuilderTest` ~40 `@Test` | **potwierdzone** | dokładnie **40** `^\s*@Test` w `impl…/DefaultModelBuilderTest.java` |
+| `DefaultProjectBuilder.build(...)` cienki unit (`extractProjectId`) | **potwierdzone** | `DefaultProjectBuilderTest.java`: **3** `@Test`, wszystkie wokół `extractProjectId` |
+| Parent cycle / deep parent unit classes | **potwierdzone** | `ParentCycleDetectionTest.java`, `ParentTraversalTest.java` (istnieją) |
+| `maven3Personality` demotes mismatch → WARNING: brak dedykowanego unit | **potwierdzone (gap)** | kod demotion `:1359–1362` (`warn ? WARNING : FATAL`); unit wspomina hint w FATAL (`ParentCycleDetectionTest.java:400`) — **brak** testu ustawiającego personality i oczekującego WARNING |
+| `setProjects` / `setAllProjects` w `DefaultMaven` | **potwierdzone** | `DefaultMaven.java:662–663` |
+| Produkcja: `new DefaultModelBuilder(...)` jako fan-in reactora | **doprecyzowane / obalone jako główna ścieżka** | jawne `new`: compat `DefaultModelBuilderFactory.java:203` + testing `RepositorySystemSupplier.java:1152`. Impl produkcyjny: `@Named` + `@Inject` ctor (`DefaultModelBuilder.java:134–170`) — DI, nie AST `new` |
+| SPI `ModelParser`/`ModelTransformer` wstrzykiwane `@Named` Map/List w hubie | **doprecyzowane** | `List<ModelTransformer>` w `DefaultModelBuilder` (`:163`, `:186`); `Map<String, ModelParser>` w `DefaultModelProcessor` (`:72–75`), nie w DMB. ServiceLoader: tylko javadoc SPI; **zero** `ServiceLoader` w `ModelParser.java` → wiring ClassRealm = **unknown** |
+| Refleksja / ClassRealm / zewnętrzne extensions | **unknown** (bez zmiany) | brak AST call-site ≠ brak runtime; nie oznaczane jako „brak wywołań” |
+
+### Korekty treści po weryfikacji
+
+- Kierunek call-graph i twin/compat poza hot path — **bez zmiany werdyktu**; liczby call-site’ów `BUILD_PROJECT` / `session.build` doprecyzowane powyżej.
+- SPI: poprawione w Architecture Insights (Parser ≠ pole DMB; ServiceLoader = dokumentacja, nie znaleziony call-site).
+- `new DefaultModelBuilder` nie jest miarą fan-inu reactora M4 (pułapka: Factory/testing + homonimy `*Result`/`*Request`).
+
 ## Inspected scope / method
 
 - Trzech równoległych sub-agentów (trace e2e, test gaps, blast radius); synteza + spot-check kotwic w parent context.
-- HEAD `3b94a4f31bd4c10a2789b1dced5f58e906c0865c`, branch `docs/repo-map`.
-- Nie uruchamiano pełnych testów ani buildu; nie patchowano kodu.
+- Krok strukturalny: `ast-grep -l java` (wzorce call-site / class / inject) + `rg` na każde zero; bez `-r` / rewrite.
+- HEAD `3b94a4f31bd4c10a2789b1dced5f58e906c0865c`, branch `docs/research-deep-focus`.
+- Nie uruchamiano pełnych testów ani buildu; nie patchowano kodu źródłowego Mavena.
