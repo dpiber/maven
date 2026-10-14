@@ -206,12 +206,12 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 
 #### Automated
 
-- [ ] 1.1 Contract note file exists with FATAL/WARNING/compat rules
-- [ ] 1.2 Production diff is comment-only in DefaultModelBuilder
+- [x] 1.1 Contract note file exists with FATAL/WARNING/compat rules
+- [x] 1.2 Production diff is comment-only in DefaultModelBuilder
 
 #### Manual
 
-- [ ] 1.3 Contract wording matches research intentionality verdict
+- [x] 1.3 Contract wording matches research intentionality verdict
 
 ### Phase 2: Demotion unit (impl)
 

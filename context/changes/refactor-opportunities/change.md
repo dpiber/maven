@@ -1,7 +1,7 @@
 ---
 change_id: refactor-opportunities
 title: Rank ModelBuilder refactor opportunities from prior debt analysis
-status: plan_reviewed
+status: implementing
 created: 2026-10-14
 updated: 2026-10-14
 

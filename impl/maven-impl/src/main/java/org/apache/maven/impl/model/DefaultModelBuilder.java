@@ -1358,6 +1358,7 @@ public class DefaultModelBuilder implements ModelBuilder {
             // WARNING when: Maven probed the default path (user didn't set anything),
             //               OR maven3Personality is active (preserve historical lenient behaviour).
             // FATAL otherwise: explicit <relativePath> pointing at the wrong artifact is a config error.
+            // Compat twin always reports WARNING for the same mismatch; do not unify severity across twins.
             boolean warn = defaultPath || maven3Mode;
             add(warn ? Severity.WARNING : Severity.FATAL, Version.BASE, message, parent.getLocation(""));
         }
