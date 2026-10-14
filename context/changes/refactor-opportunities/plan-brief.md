@@ -9,7 +9,7 @@ Zamykamy lukę characterization na świadomym kontrakcie twin M3↔M4 dla explic
 
 ## Starting Point
 
-Impl ma unit FATAL+hint, compat ma MNG-5146 WARNING; brak unit demotion personality i brak paired fixture. Ranking researchu proponował K2 → K1 → K3; wywiad wybrał wyłącznie pełne K2.
+Impl ma unit FATAL+hint, compat ma MNG-5146 WARNING; brak unit demotion personality i brak paired verification gate. Ranking researchu proponował K2 → K1 → K3; wywiad wybrał wyłącznie pełne K2.
 
 ## Desired End State
 
@@ -20,18 +20,18 @@ Kontrakt udokumentowany (komentarz + notatka w change folder) i pokryty testami:
 | Decision | Choice | Why (1 sentence) | Source |
 | -------- | ------ | ---------------- | ------ |
 | Która opportunity | Pełne K2 (nie K1/K3) | Najniższy blast przy wysokim koszcie błędu „fix twin” | Plan (ranking = propozycja) |
-| Głębokość K2 | Demotion + paired + lokalny kontrakt | Kontrpytanie odrzucone — cieńszy guard nie zamyka paired | Plan |
+| Głębokość K2 | Demotion + paired verification + lokalny kontrakt | Kontrpytanie odrzucone — cieńszy guard nie zamyka pary | Plan |
 | Wykluczenia | Bez unifikacji severity, bez extractów, bez Jacoco/SPI/mapy | Świadome ograniczenia i poza ścieżką tej zmiany | Plan + Research |
 | Unknowns | NOT doing / follow-up; zero discovery mid-impl | Unika scope creep (configProperties/ClassRealm) | Plan |
-| Kolejność faz | Kontrakt → demotion → paired; ITS opcjonalny smoke | Guard-first, najtańsze najpierw | Plan |
+| Kolejność faz | Kontrakt → demotion → paired verification gate; ITS opcjonalny smoke | Guard-first, najtańsze najpierw | Plan |
 
 ## Scope
 
 **In scope:**
 - Komentarz przy `mismatchRelativePathAndGA`
 - `contract-twin-relativepath.md` w folderze zmiany
-- Unit demotion personality w `ParentCycleDetectionTest`
-- Paired fixture layout impl↔compat (skopiowany, bez shared test-jar)
+- Unit demotion personality w `ParentCycleDetectionTest` na layoutcie WRONG_PARENT (SoT = MNG-5146)
+- Paired verification gate: review pary z istniejącym MNG-5146 (bez shared test-jar / bez kopiowania do compat)
 
 **Out of scope:**
 - Unifikacja FATAL↔WARNING
@@ -50,7 +50,7 @@ Characterization tests + dokumentacja kontraktu na istniejącym hubie ModelBuild
 | ----- | ---------------- | -------- |
 | 1. Contract note | Komentarz + notatka kontraktu | Zbyt ogólny wording → mylący „fix” |
 | 2. Demotion unit | WARNING przy personality | System/configProperties wiring + cleanup; userProperties anti-pattern under ApiRunner |
-| 3. Paired fixture | Ten sam layout po obu stronach twin | Drift layoutu między modułami |
+| 3. Paired verification gate | Potwierdzenie pary impl↔compat (zero nowego kodu) | Myłka: szukanie fixture copy / przebudowy MNG-5146 |
 
 **Prerequisites:** Zweryfikowany `research.md`; istniejący FATAL unit + MNG-5146  
 **Estimated effort:** ~1–2 sesje implementacji (3 fazy, głównie testy)
@@ -64,4 +64,4 @@ Characterization tests + dokumentacja kontraktu na istniejącym hubie ModelBuild
 
 - Kontrakt zapisany i zgodny z researchem (nie sync severity)
 - Unit: FATAL default + WARNING personality po stronie impl
-- Compat WARNING pozostaje; para layoutów dokumentuje twin bez zmiany semantyki
+- Compat WARNING pozostaje; para WRONG_PARENT (impl demotion + istniejący MNG-5146) dokumentuje twin bez zmiany semantyki

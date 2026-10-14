@@ -17,7 +17,7 @@ Zamknąć lukę characterization na świadomym kontrakcie twin M3↔M4 dla expli
 
 - Personality jest świadomym ograniczeniem (MNG-5146 / `maven.maven3Personality`), nie bugiem do „naprawy” severity.
 - Paired fixture = skopiowany layout POM między modułami; brak shared test-jar.
-- `Features.mavenMaven3Personality` czyta `configProperties` sesji (`DefaultModelBuilder` hot path); w `ApiRunner` user props nie zasilają config mapy — demotion w teście przez System property / session `configProperties`, nie `request.userProperties(...)`.
+- `Features.mavenMaven3Personality` czyta `configProperties` sesji (`DefaultModelBuilder` hot path); w `ApiRunner` user props nie zasilają config mapy — demotion w teście przez System property + recreate `ApiRunner.createSession()`, nie `request.userProperties(...)`.
 
 ## Desired End State
 
@@ -37,7 +37,7 @@ Dokumentowany i testami scharakteryzowany kontrakt: explicit relativePath GA mis
 
 ## Implementation Approach
 
-Guard-first / characterization przed jakąkolwiek migracją struktury. Kolejność: zapis kontraktu → unit demotion → paired fixture. ITS `MavenITmng8294ParentChecksTest` jest opcjonalnym smoke, nie gate demotion. Nie stosujemy Strangler / Branch by Abstraction — to nie jest migracja struktury.
+Guard-first / characterization przed jakąkolwiek migracją struktury. Kolejność: zapis kontraktu → unit demotion → paired verification gate. ITS `MavenITmng8294ParentChecksTest` jest opcjonalnym smoke, nie gate demotion. Nie stosujemy Strangler / Branch by Abstraction — to nie jest migracja struktury.
 
 ## Phase 1: Contract note
 
@@ -90,16 +90,18 @@ Dodać unit: explicit relativePath GA mismatch + `maven.maven3Personality=true` 
 
 **File**: `impl/maven-impl/src/test/java/org/apache/maven/impl/model/ParentCycleDetectionTest.java`
 
-**Intent**: **Source of truth = compat MNG-5146 / WRONG_PARENT** (REAL_PARENT / WRONG_PARENT + child/../pom.xml) — ten sam kształt używany później w Phase 3 paired fixture. Dodać FATAL (default) + demotion WARNING (personality) na tym layoutcie (stringi / lokalne pliki w module). Istniejący shade-style FATAL (`testWrongRelativePathInGeneratedPomIsFatalWithMaven3Hint` / dependency-reduced-pom) **nie** jest bazą demotion — może zostać jako dodatkowa regresja GH-13191 albo zostać nietknięty; nie klonować go pod demotion.
+**Intent**: **Source of truth = compat MNG-5146 / WRONG_PARENT** (REAL_PARENT / WRONG_PARENT + child/../pom.xml) — ten sam kształt weryfikowany później w Phase 3 paired gate. Dodać FATAL (default) + demotion WARNING (personality) na tym layoutcie (stringi / lokalne pliki w module). Istniejący shade-style FATAL (`testWrongRelativePathInGeneratedPomIsFatalWithMaven3Hint` / dependency-reduced-pom) **nie** jest bazą demotion — może zostać jako dodatkowa regresja GH-13191 albo zostać nietknięty; nie klonować go pod demotion.
 
-**Contract**: Włączyć personality przez System property `Constants.MAVEN_MAVEN3_PERSONALITY`, potem **lokalnie** wywołać `ApiRunner.createSession()` (nadpisać shared `session` z `@BeforeEach`) — ApiRunner kopiuje system props w momencie create; late `setProperty` po `@BeforeEach` nie zasila istniejącej config mapy. Alternatywa: mutacja mutable `configProperties` na session przed `build`. Cleanup System property w `@AfterEach` / try-finally. **Anti-pattern**: `request.userProperties(...)` (wzorzec z innych flag w `DefaultModelBuilderTest`) — user props nie trafiają do config mapy w `ApiRunner`. Jeśli System/config też nie demotuje — **stop**, zapisać follow-up; nie badać ClassRealm/SPI ani nie mutować produkcyjnego wiring w tej zmianie.
+**Contract**: Włączyć personality przez System property `Constants.MAVEN_MAVEN3_PERSONALITY`, potem **lokalnie** wywołać `ApiRunner.createSession()` (nadpisać shared `session` z `@BeforeEach`) — ApiRunner kopiuje system props w momencie create; late `setProperty` po `@BeforeEach` nie zasila istniejącej config mapy. SoT = System property + recreate session; nie mutować mapy z `getConfigProperties()` (unmodifiable view). Cleanup System property w `@AfterEach` / try-finally. **Anti-pattern**: `request.userProperties(...)` (wzorzec z innych flag w `DefaultModelBuilderTest`) — user props nie trafiają do config mapy w `ApiRunner`. Jeśli System/config też nie demotuje — **stop**, zapisać follow-up; nie badać ClassRealm/SPI ani nie mutować produkcyjnego wiring w tej zmianie.
+
+**Asercja demotion**: Jak shade FATAL w tym samym teście — catch `ModelBuilderException` / problemy z builda; wymagaj mismatch WARNING (message / relativePath). **Nie** wymagaj sukcesu builda ani globalnego braku FATAL: bez `ModelResolver` (`ParentProvidingResolver` z MNG-5146) ścieżka może nadal kończyć się Non-resolvable parent FATAL po demotion mismatch. Para z compat to severity/layout, nie „successful fallback build”. Nie dodawać resolvera pod ApiRunner w tej fazie.
 
 ### Success Criteria:
 
 #### Automated Verification:
 
 - `mvn test -pl impl/maven-impl -am -Dtest=ParentCycleDetectionTest` przechodzi
-- Nowy test asertuje WARNING przy personality; istniejący FATAL+hint bez flagi nadal przechodzi
+- Nowy test asertuje mismatch WARNING przy personality (nie wymaga sukcesu builda / braku FATAL); istniejący FATAL+hint bez flagi nadal przechodzi
 
 #### Manual Verification:
 
@@ -109,11 +111,11 @@ Dodać unit: explicit relativePath GA mismatch + `maven.maven3Personality=true` 
 
 ---
 
-## Phase 3: Paired fixture
+## Phase 3: Paired verification gate
 
 ### Overview
 
-Ujednolicić layout POM (explicit mismatch) między impl i compat tak, by para testów dokumentowała ten sam scenariusz przy celowo różnych severity (impl FATAL default / WARNING+personality; compat WARNING).
+Human/verification gate po Phase 2: potwierdzić, że para impl↔compat dokumentuje ten sam explicit-mismatch przy celowo różnych severity. **Zero nowego kodu** — layout WRONG_PARENT i demotion są już SoT z Phase 2; MNG-5146 po stronie compat bez zmian.
 
 ### Changes Required:
 
@@ -121,17 +123,17 @@ Ujednolicić layout POM (explicit mismatch) między impl i compat tak, by para t
 
 **File**: `impl/maven-impl/src/test/java/org/apache/maven/impl/model/ParentCycleDetectionTest.java` (i ewentualnie lokalne zasoby testowe w tym module)
 
-**Intent**: Layout WRONG_PARENT jest już SoT z Phase 2 (FATAL default + WARNING personality). Phase 3 **nie** wybiera ponownie między shade a WRONG_PARENT i **nie** zastępuje demotion — tylko weryfikuje, że para impl↔compat dokumentuje ten sam explicit-mismatch przy celowo różnych severity. Shade FATAL (jeśli nadal obecny) pozostaje poza kanoniczną parą.
+**Intent**: Layout WRONG_PARENT jest już SoT z Phase 2 (FATAL default + WARNING personality). Phase 3 **nie** wybiera ponownie między shade a WRONG_PARENT i **nie** zastępuje demotion — tylko weryfikuje parę. Shade FATAL (jeśli nadal obecny) pozostaje poza kanoniczną parą.
 
-**Contract**: Zero drugiej decyzji o layoutcie; nie wspólny classpath resource między `maven-impl` a `maven-model-builder`.
+**Contract**: Zero drugiej decyzji o layoutcie; nie wspólny classpath resource między `maven-impl` a `maven-model-builder`; zero nowych testów / layoutów w tej fazie.
 
-#### 2. Compat side paired assertion
+#### 2. Compat side paired assertion (existing MNG-5146 — no code)
 
 **File**: `compat/maven-model-builder/src/test/java/org/apache/maven/model/building/DefaultModelBuilderTest.java`
 
-**Intent**: Istniejący MNG-5146 pozostaje kanoniczny layout; compat tylko asertuje WARNING. Nie zmieniać kształtu POM po stronie compat.
+**Intent**: Istniejący MNG-5146 jest kanoniczną stroną compat; tylko re-run / review asercji WARNING. Nie zmieniać kształtu POM ani kodu testu.
 
-**Contract**: Compat nadal asertuje WARNING; zero zmian w produkcji compat builder; zero przebudowy layoutu MNG-5146.
+**Contract**: Compat nadal asertuje WARNING; zero zmian w produkcji compat builder; **zero przebudowy layoutu MNG-5146**.
 
 ### Success Criteria:
 
@@ -156,7 +158,7 @@ Ujednolicić layout POM (explicit mismatch) między impl i compat tak, by para t
 
 - Impl FATAL bez personality (istniejący)
 - Impl WARNING z personality (nowy)
-- Compat WARNING explicit / default relativePath (MNG-5146, ewentualnie dopasowany)
+- Compat WARNING explicit / default relativePath (MNG-5146 — bez przebudowy layoutu)
 
 ### Integration Tests:
 
@@ -215,13 +217,13 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 #### Automated
 
 - [ ] 2.1 ParentCycleDetectionTest suite passes
-- [ ] 2.2 New demotion test asserts WARNING; existing FATAL test still passes
+- [ ] 2.2 New demotion test asserts mismatch WARNING (not build success / no-FATAL); existing FATAL test still passes
 
 #### Manual
 
 - [ ] 2.3 Test naming/assertions communicate demotion not unification
 
-### Phase 3: Paired fixture
+### Phase 3: Paired verification gate
 
 #### Automated
 
