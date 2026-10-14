@@ -229,11 +229,11 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 
 #### Automated
 
-- [x] 3.1 ParentCycleDetectionTest suite passes after pairing
-- [x] 3.2 Compat DefaultModelBuilderTest suite passes
-- [x] 3.3 Paired coverage: impl FATAL+WARNING personality, compat WARNING
+- [x] 3.1 ParentCycleDetectionTest suite passes after pairing — b666e22dc7
+- [x] 3.2 Compat DefaultModelBuilderTest suite passes — b666e22dc7
+- [x] 3.3 Paired coverage: impl FATAL+WARNING personality, compat WARNING — b666e22dc7
 
 #### Manual
 
-- [x] 3.4 Optional ITS MNG-8294 smoke (not demotion gate)
-- [x] 3.5 Review confirms no shared test-jar and no severity unification
+- [x] 3.4 Optional ITS MNG-8294 smoke (not demotion gate) — b666e22dc7
+- [x] 3.5 Review confirms no shared test-jar and no severity unification — b666e22dc7
