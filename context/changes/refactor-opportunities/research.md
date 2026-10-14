@@ -1,21 +1,22 @@
 ---
 date: 2026-10-14T10:04:20+0000
 researcher: Dominik Piber
-git_commit: 023575b599375d1c012d60e1f56d3a223cb1eb3f
+git_commit: 9789a04220cfa0c5e59fc38cfc9f0c7c9a43ed20
+research_commit: 023575b599375d1c012d60e1f56d3a223cb1eb3f
 branch: docs/refactor-opportunities
 repository: apache/maven
 topic: "Refactor opportunities from model-builder-flow-analysis debt"
-tags: [research, codebase, model-builder, refactor-opportunities, maven-impl, maven-core, compat]
+tags: [research, codebase, model-builder, refactor-opportunities, maven-impl, maven-core, compat, verified]
 status: complete
 last_updated: 2026-10-14
-last_updated_by: Dominik Piber
+last_updated_by: Dominik Piber (ast-grep verify)
 ---
 
 # Research: Refactor opportunities (ModelBuilder path)
 
 **Date**: 2026-10-14T10:04:20+0000  
 **Researcher**: Dominik Piber  
-**Git Commit**: `023575b599375d1c012d60e1f56d3a223cb1eb3f`  
+**Git Commit**: `9789a04220cfa0c5e59fc38cfc9f0c7c9a43ed20` (verify; research: `023575b599375d1c012d60e1f56d3a223cb1eb3f`)  
 **Branch**: `docs/refactor-opportunities`  
 **Repository**: apache/maven  
 
@@ -59,8 +60,8 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 #### Obecny kształt
 
 - Klasa: `impl/maven-impl/.../impl/model/DefaultModelBuilder.java` — **3451** LOC (`wc -l` na HEAD tej sesji) (**evidence**).
-- Implementuje `org.apache.maven.api.services.ModelBuilder`; `@Named` + `@Inject` ctor z ~18 collaboratorami SPI (`ModelProcessor`, `ModelValidator`, interpolator, inheritance, profiles, …) oraz `List<ModelTransformer>` (**evidence**: `:134–209`).
-- Entry: `ModelBuilderSessionImpl.build` — `BUILD_PROJECT` → `buildBuildPom()`, inaczej `buildEffectiveModel` (**evidence**: `:241–247`; prior).
+- Implementuje `org.apache.maven.api.services.ModelBuilder`; `@Named` + `@Inject` ctor z 18 collaboratorami SPI (`ModelProcessor`, `ModelValidator`, interpolator, inheritance, profiles, …) oraz `List<ModelTransformer>` = **19** parametrów ctora (**evidence**: `:134–209`; raport: ~18 + List).
+- Entry: `ModelBuilderSessionImpl.build` (`:227`) — `BUILD_PROJECT` → `buildBuildPom()`, inaczej `buildEffectiveModel` (**evidence**: `:241–247`; prior).
 - Masa logiki w nested `ModelBuilderSessionState` (file load, effective, parent frames, CI-friendly w `doReadFileModel`, import depMgmt, cache) (**evidence**: struktura `:216+`, `:265+`; metody m.in. `mismatchRelativePathAndGA` `:1324`, `buildBuildPom` / `buildEffectiveModel`, `doReadFileModel` — potwierdzone lokalizacje przez worker shape).
 - **Istniejące szwy:** stage interfaces w `api/maven-api-spi/.../services/model/` + `Default*` helpery poza hubem; SPI `ModelTransformer` na file/raw/effective; `RequestType` w `ModelBuilderRequest` (**evidence**). Brak potrzeby nowego publicznego SPI do extractu package-private (**inference**).
 
@@ -85,10 +86,10 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 #### Obecny kształt
 
 - Twin: `compat/maven-model-builder/.../DefaultModelBuilder.java` — **1465** LOC, `@Deprecated(since = "4.0.0")` (**evidence**: `:99–100`, `wc -l`).
-- Hot path reactora woła **tylko** `api.services.ModelBuilder` z `project.DefaultProjectBuilder` (**evidence**: importy `:72–75`, prior; zero compat ModelBuilder w maven-core main — prior).
+- Hot path reactora woła **tylko** `api.services.ModelBuilder` z `project.DefaultProjectBuilder` (**evidence**: importy `:72–75`, prior; zero importów/`FQN` `model.building.(Default)?ModelBuilder` w maven-core main — prior; **doprecyzowanie**: nadal importy innych typów `model.building.*` np. `ModelProblem` / `ModelSource` `:93–96`).
 - relativePath GA mismatch:
   - **impl** `:1324–1362`: `warn = defaultPath || maven3Mode`; inaczej **FATAL**; komentarz „preserve historical lenient behaviour” (**evidence**).
-  - **compat** `:1071–1074`: zawsze **WARNING** (**evidence**).
+  - **compat** `:1072–1074` (raport: `:1071–1074`): zawsze **WARNING** (**evidence**; `:1071` = `problems.setSource`).
 - `maven.maven3Personality` / `Features.mavenMaven3Personality` — po stronie impl; w `compat/maven-model-builder` brak personality (**evidence**: rg).
 - Brak krawędzi kompilacji compat→impl; ręczne uzgodnienie semantyki (prior co-change A→B wysokie gdy compat się rusza; reverse niskie) (**evidence** prior; nie przeliczane w tej sesji).
 
@@ -113,10 +114,10 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 
 #### Obecny kształt
 
-- `impl/maven-core/.../project/DefaultProjectBuilder.java` — **1420** LOC, `@Deprecated`, implements legacy `ProjectBuilder` (**evidence**: `wc -l`, `:108–115`).
-- Nested `BuildSession`: `ModelBuilderSession`, `projectIndex`, parent frames; `BUILD_PROJECT` → `modelBuilderSession.build` → `initProject` / `finishProjectInitialization` (**evidence**: prior `:665–710`, `:679`; worker shape).
-- Facade `internal.impl.DefaultProjectBuilder` deleguje do legacy builder (**evidence** prior).
-- Call-site reactor: `DefaultProjectsSelector` → `build(files, recursive, …)` (**evidence** worker).
+- `impl/maven-core/.../project/DefaultProjectBuilder.java` — **1420** LOC, `@Deprecated`, implements legacy `ProjectBuilder` (**evidence**: `wc -l`, `:112–115` (raport: `:108–115`)).
+- Nested `BuildSession`: `ModelBuilderSession`, `projectIndex`, parent frames; `BUILD_PROJECT` → `modelBuilderSession.build` → `initProject` / `finishProjectInitialization` (**evidence**: prior `:665–710`, `:679`; worker shape; także `modelBuilder.newSession()` `:351`).
+- Facade `internal.impl.DefaultProjectBuilder` deleguje do legacy builder (**evidence** prior; `builder.build` `:90` / `:94`).
+- Call-site reactor: `DefaultProjectsSelector` → `build(files, recursive, …)` (**evidence** worker; `:61`).
 
 #### Intencjonalność
 
@@ -186,8 +187,8 @@ Ranking = propozycja pod późniejsze planowanie (osobna sesja). Nie jest decyzj
 ## Code References
 
 - `impl/maven-impl/.../model/DefaultModelBuilder.java:134–209,241–247,1324–1362` — hub, RequestType branch, relativePath personality
-- `compat/maven-model-builder/.../DefaultModelBuilder.java:99–100,1071–1074` — deprecated twin, always WARNING
-- `impl/maven-core/.../project/DefaultProjectBuilder.java:72–75,665–710,679` — reactor → api ModelBuilder → materializacja
+- `compat/maven-model-builder/.../DefaultModelBuilder.java:99–100,1072–1074` (raport: `:1071–1074`) — deprecated twin, always WARNING
+- `impl/maven-core/.../project/DefaultProjectBuilder.java:72–75,112–115,665–710,679` — reactor → api ModelBuilder → materializacja; `@Deprecated`+class `:112–115` (raport: `:108–115`)
 - `impl/maven-impl/.../model/ParentCycleDetectionTest.java:394–403` — FATAL+hint, brak demotion unit
 - `impl/maven-impl/.../model/DefaultModelBuilderTest.java` — 40 `@Test`
 - `impl/maven-core/.../project/DefaultProjectBuilderTest.java` — 3 `@Test` (`extractProjectId`)
@@ -222,5 +223,40 @@ Ranking = propozycja pod późniejsze planowanie (osobna sesja). Nie jest decyzj
 
 - Prior przeczytany w całości; mapa § strefa 1 jako prior.
 - Trzech sub-agentów Explore (kształt / historia / wykonalność) na K1–K3; synteza w parent context.
-- Spot-check: `mismatchRelativePathAndGA` `:1324–1362`, compat WARNING `:1071–1074`, `wc -l` hubów, liczby `@Test`, commity `4309183ac9` / `5000b5933f` / `fee69f2f89` / `26a35db0c7`.
+- Spot-check: `mismatchRelativePathAndGA` `:1324–1362`, compat WARNING `:1072–1074` (raport: `:1071–1074`), `wc -l` hubów, liczby `@Test`, commity `4309183ac9` / `5000b5933f` / `fee69f2f89` / `26a35db0c7`.
 - Zero zmian w kodzie produkcyjnym; zero buildów/testów uruchomionych.
+- Weryfikacja strukturalna (ast-grep + rg) na HEAD `9789a04220` — sekcja poniżej; ranking i werdykty intencjonalności nietknięte.
+
+## Weryfikacja twierdzeń (ast-grep)
+
+Weryfikacja na `9789a04220cfa0c5e59fc38cfc9f0c7c9a43ed20` (research baseline: `023575b599…`). Wzorce `-l java`; każde zero AST potwierdzone `rg`. Sekcji „Refactor opportunities (ranked)” i werdyktów intencjonalności **nie zmieniono**.
+
+| Twierdzenie | Werdykt | Dowód (plik:linia) | Metoda (wzorzec/reguła) |
+|-------------|---------|--------------------|-------------------------|
+| `impl…DefaultModelBuilder` = **3451** LOC | potwierdzone | `impl/.../model/DefaultModelBuilder.java` (`wc -l` → 3451) | `wc -l` |
+| `compat…DefaultModelBuilder` = **1465** LOC | potwierdzone | `compat/.../building/DefaultModelBuilder.java` (`wc -l` → 1465) | `wc -l` |
+| `project…DefaultProjectBuilder` = **1420** LOC | potwierdzone | `impl/.../project/DefaultProjectBuilder.java` (`wc -l` → 1420) | `wc -l` |
+| Para lustrzana: dwa `DefaultModelBuilder` (impl vs compat) | potwierdzone | impl `:136`; compat `:100` | `rg 'class DefaultModelBuilder'`; ast-grep class-decl na dużym pliku pusty → fallback `rg` |
+| Para lustrzana: dwa `DefaultProjectBuilder` (legacy `project` + facade `internal.impl`) | potwierdzone | `project/…:115`; `internal/impl/…:57` | `rg 'class DefaultProjectBuilder'`; `ast-grep -p 'class BuildSession implements AutoCloseable'` (nested) |
+| impl `implements ModelBuilder`; `@Named` + `@Inject` ctor | potwierdzone | `@Named` `:134`; class `:136`; `@Inject` ctor `:169–209` | `rg`; parametry: python count ctor = **19** (18 SPI + `List<ModelTransformer>`; raport: ~18 + List) |
+| Entry `BUILD_PROJECT` → `buildBuildPom()`, else `buildEffectiveModel` | potwierdzone | `DefaultModelBuilder.java:241–247` (`build` method `:227`) | `rg 'BUILD_PROJECT\|buildBuildPom\|buildEffectiveModel'`; `ast-grep -p 'modelBuilderSession.build($A)'` (call-site’y) |
+| `mismatchRelativePathAndGA`: `warn = defaultPath \|\| maven3Mode`; else FATAL | potwierdzone | `:1324–1362` (`warn` `:1361`; ternary Severity `:1362`) | `ast-grep -p 'boolean warn = defaultPath \|\| maven3Mode'`; `ast-grep -p 'add(warn ? Severity.WARNING : Severity.FATAL, $$$A)'`; call-site’y `ast-grep -p 'mismatchRelativePathAndGA($$$)'` → `:1899`, `:2309` |
+| compat relativePath mismatch → zawsze WARNING | potwierdzone / doprecyzowane | `:1072–1074` (raport: `:1071–1074`; `:1071` = `setSource`) | `rg 'Severity.WARNING'` + odczyt bloku; ast-grep `problems.add(new ModelProblemCollectorRequest(Severity.WARNING, $$$A))` na pliku — pusty (składnia multi-line) → `rg` |
+| `Features.mavenMaven3Personality` po stronie impl; **zero** w compat | potwierdzone | impl `:1326–1327`, `:2007`; `Features.java:39`; compat: **0** hits | `ast-grep -p 'Features.mavenMaven3Personality($$$A)'`; `rg` w `compat/maven-model-builder` → ZERO |
+| Hot path: `project.DefaultProjectBuilder` importuje **api** `ModelBuilder` (`:72–75`); **zero** compat `ModelBuilder` w maven-core main | potwierdzone / doprecyzowane | api imports `:72–75`; `rg` ZERO `model.building.(Default)?ModelBuilder` w `maven-core/src/main`; **doprecyzowanie**: inne typy `model.building.*` tak (`:93–96` ModelProblem/Source) — nie twin builder | `rg 'import org.apache.maven.api.services.ModelBuilder'`; `rg` ZERO na twin; **unknown** wiring SPI/ClassRealm (poza AST) |
+| `modelBuilderSession.build` na ścieżce reactora | potwierdzone / doprecyzowane | produkcja `:492`, `:679` (+ test `:1733`); `BUILD_PROJECT` request `:674`; `newSession` `:351` | `ast-grep -p 'modelBuilderSession.build($A)'` |
+| Nested `BuildSession` → `initProject` / materializacja (`:665–710`) | potwierdzone | `BuildSession` `:317`; `build(File,recursive)` `:665`; `initProject` `:699`/`:773`; `finishProjectInitialization` `:511`/`:783` | `ast-grep -p 'class BuildSession implements AutoCloseable'`; `rg` |
+| Facade `internal.impl.DefaultProjectBuilder` deleguje do legacy | potwierdzone | field `org.apache.maven.project.ProjectBuilder builder` `:59`; `builder.build` `:90`, `:94` | `rg` / odczyt |
+| Reactor call-site: `DefaultProjectsSelector` → `projectBuilder.build(files, recursive, …)` | potwierdzone | `DefaultProjectsSelector.java:61` | `ast-grep -p 'projectBuilder.build($F, $R, $REQ)'` |
+| `DefaultModelBuilderTest` — **40** `@Test` | potwierdzone | `DefaultModelBuilderTest.java` (40× `@Test`) | `rg -c '@Test'` / `^\s*@Test\b` |
+| `DefaultProjectBuilderTest` — **3** `@Test`, tylko `extractProjectId` | potwierdzone | `:51`, `:77`, `:101`; refleksja `extractProjectId` | `rg -c '@Test'`; `rg 'extractProjectId'` |
+| `ParentCycleDetectionTest:394–403` — FATAL+hint; brak unit demotion personality | potwierdzone | `:394–403`; brak `maven3Personality=true` w unit demotion (`rg` testów impl) | `rg` + odczyt; **unknown** czy ITS pokrywa demotion poza zakresem tej weryfikacji |
+| `@Deprecated(since="4.0.0")` na compat MB i legacy PB | potwierdzone / doprecyzowane | compat MB `:99–100`; legacy PB `:112–115` (raport: `:108–115`) | `rg '@Deprecated\|class Default'` |
+
+### Wpływ na ranking (tylko adnotacja)
+
+Żadne twierdzenie ranking-bearing nie zostało **obalone**. Doprecyzowania (linie WARNING/Deprecated, 19 vs „~18” params, dodatkowy call-site `:492`, importy nie-twin `model.building.*` w core) **nie podważają** kolejności K2 → K1 → K3.
+
+Jeśli na etapie planowania ktoś czyta „zero compat w maven-core” zbyt szeroko: zawęzić do **ModelBuilder twin** (inne typy `model.building` zostają) — **do decyzji na etapie planowania** (blast/cost K2/K3, nie zmiana pozycji w tym raporcie).
+
+SPI / ClassRealm / ServiceLoader wiring `ModelTransformer` — nadal **unknown** (nie mylić z „brak wywołań” w AST).
