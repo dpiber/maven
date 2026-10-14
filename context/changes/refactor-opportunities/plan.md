@@ -17,7 +17,7 @@ Zamknąć lukę characterization na świadomym kontrakcie twin M3↔M4 dla expli
 
 - Personality jest świadomym ograniczeniem (MNG-5146 / `maven.maven3Personality`), nie bugiem do „naprawy” severity.
 - Paired fixture = skopiowany layout POM między modułami; brak shared test-jar.
-- `Features.mavenMaven3Personality` czyta `configProperties` sesji; testy mogą używać `userProperties` — jeśli demotion nie zadziała, stop + follow-up (bez discovery ClassRealm/SPI w tej zmianie).
+- `Features.mavenMaven3Personality` czyta `configProperties` sesji (`DefaultModelBuilder` hot path); w `ApiRunner` user props nie zasilają config mapy — demotion w teście przez System property / session `configProperties`, nie `request.userProperties(...)`.
 
 ## Desired End State
 
@@ -33,7 +33,7 @@ Dokumentowany i testami scharakteryzowany kontrakt: explicit relativePath GA mis
 - Jacoco % jako cel / baseline w tej zmianie
 - Badanie wiring ClassRealm / zewnętrznych `ModelTransformer`
 - Korekty `context/map/repo-map.md`
-- Improvisacja `configProperties` / SPI w trakcie implementacji, jeśli `userProperties` nie wystarczy do demotion — wtedy follow-up, nie scope creep
+- Improvisacja ClassRealm / SPI, jeśli System property / session `configProperties` też nie demotuje — wtedy follow-up, nie scope creep
 
 ## Implementation Approach
 
@@ -86,13 +86,13 @@ Dodać unit: explicit relativePath GA mismatch + `maven.maven3Personality=true` 
 
 ### Changes Required:
 
-#### 1. Personality demotion test
+#### 1. Personality demotion test (WRONG_PARENT layout)
 
 **File**: `impl/maven-impl/src/test/java/org/apache/maven/impl/model/ParentCycleDetectionTest.java`
 
-**Intent**: Nowy test obok `testWrongRelativePathInGeneratedPomIsFatalWithMaven3Hint`, ten sam rodzaj scenariusza explicit mismatch, z włączoną personality; asercja WARNING zamiast FATAL. Istniejący FATAL test bez zmian semantycznych.
+**Intent**: **Source of truth = compat MNG-5146 / WRONG_PARENT** (REAL_PARENT / WRONG_PARENT + child/../pom.xml) — ten sam kształt używany później w Phase 3 paired fixture. Dodać FATAL (default) + demotion WARNING (personality) na tym layoutcie (stringi / lokalne pliki w module). Istniejący shade-style FATAL (`testWrongRelativePathInGeneratedPomIsFatalWithMaven3Hint` / dependency-reduced-pom) **nie** jest bazą demotion — może zostać jako dodatkowa regresja GH-13191 albo zostać nietknięty; nie klonować go pod demotion.
 
-**Contract**: Użyć `Constants.MAVEN_MAVEN3_PERSONALITY` / wzorca `userProperties` jak w innych testach `DefaultModelBuilderTest`. Jeśli flaga nie demotuje w `ApiRunner` sesji — **stop**, zapisać follow-up; nie badać ClassRealm/SPI ani nie mutować produkcyjnego wiring w tej zmianie.
+**Contract**: Włączyć personality przez System property `Constants.MAVEN_MAVEN3_PERSONALITY`, potem **lokalnie** wywołać `ApiRunner.createSession()` (nadpisać shared `session` z `@BeforeEach`) — ApiRunner kopiuje system props w momencie create; late `setProperty` po `@BeforeEach` nie zasila istniejącej config mapy. Alternatywa: mutacja mutable `configProperties` na session przed `build`. Cleanup System property w `@AfterEach` / try-finally. **Anti-pattern**: `request.userProperties(...)` (wzorzec z innych flag w `DefaultModelBuilderTest`) — user props nie trafiają do config mapy w `ApiRunner`. Jeśli System/config też nie demotuje — **stop**, zapisać follow-up; nie badać ClassRealm/SPI ani nie mutować produkcyjnego wiring w tej zmianie.
 
 ### Success Criteria:
 
@@ -117,21 +117,21 @@ Ujednolicić layout POM (explicit mismatch) między impl i compat tak, by para t
 
 ### Changes Required:
 
-#### 1. Align or add paired layout on impl side
+#### 1. Review paired layout (already on WRONG_PARENT from Phase 2)
 
 **File**: `impl/maven-impl/src/test/java/org/apache/maven/impl/model/ParentCycleDetectionTest.java` (i ewentualnie lokalne zasoby testowe w tym module)
 
-**Intent**: Dopasować layout scenariusza explicit mismatch do kontraktu paired (ten sam kształt co compat MNG-5146 / WRONG_PARENT), bez shared test module.
+**Intent**: Layout WRONG_PARENT jest już SoT z Phase 2 (FATAL default + WARNING personality). Phase 3 **nie** wybiera ponownie między shade a WRONG_PARENT i **nie** zastępuje demotion — tylko weryfikuje, że para impl↔compat dokumentuje ten sam explicit-mismatch przy celowo różnych severity. Shade FATAL (jeśli nadal obecny) pozostaje poza kanoniczną parą.
 
-**Contract**: Skopiowany layout (stringi / struktura katalogów), nie wspólny classpath resource między `maven-impl` a `maven-model-builder`.
+**Contract**: Zero drugiej decyzji o layoutcie; nie wspólny classpath resource między `maven-impl` a `maven-model-builder`.
 
 #### 2. Compat side paired assertion
 
 **File**: `compat/maven-model-builder/src/test/java/org/apache/maven/model/building/DefaultModelBuilderTest.java`
 
-**Intent**: Upewnić się, że istniejący MNG-5146 explicit-WARNING (lub lekko dopasowany layout) stanowi drugą stronę pary; dodać test tylko jeśli layout trzeba zsynchronizować z impl.
+**Intent**: Istniejący MNG-5146 pozostaje kanoniczny layout; compat tylko asertuje WARNING. Nie zmieniać kształtu POM po stronie compat.
 
-**Contract**: Compat nadal asertuje WARNING; zero zmian w produkcji compat builder.
+**Contract**: Compat nadal asertuje WARNING; zero zmian w produkcji compat builder; zero przebudowy layoutu MNG-5146.
 
 ### Success Criteria:
 
@@ -174,7 +174,7 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 
 ## Open Risks & Assumptions
 
-- `userProperties` w teście unit może nie zasilić `Features.mavenMaven3Personality` (czyta `configProperties`) — wtedy follow-up, nie improvisacja w tej zmianie
+- System property / session `configProperties` powinny zasilić demotion; jeśli mimo to nie — follow-up (ClassRealm/SPI poza zakresem), nie improvisacja w tej zmianie; pamiętać o cleanup System property w teście
 - Adopcja `-Dmaven.maven3Personality` w ekosystemie pozostaje unknown (follow-up)
 - Jacoco %, ClassRealm/`ModelTransformer`, harmonogram migracji deprecated PB — poza zakresem
 

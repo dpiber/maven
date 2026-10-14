@@ -49,7 +49,7 @@ Characterization tests + dokumentacja kontraktu na istniejącym hubie ModelBuild
 | Phase | What it delivers | Key risk |
 | ----- | ---------------- | -------- |
 | 1. Contract note | Komentarz + notatka kontraktu | Zbyt ogólny wording → mylący „fix” |
-| 2. Demotion unit | WARNING przy personality | `userProperties` może nie zasilić feature flag |
+| 2. Demotion unit | WARNING przy personality | System/configProperties wiring + cleanup; userProperties anti-pattern under ApiRunner |
 | 3. Paired fixture | Ten sam layout po obu stronach twin | Drift layoutu między modułami |
 
 **Prerequisites:** Zweryfikowany `research.md`; istniejący FATAL unit + MNG-5146  
