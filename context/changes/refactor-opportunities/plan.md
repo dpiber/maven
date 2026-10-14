@@ -217,23 +217,23 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 
 #### Automated
 
-- [x] 2.1 ParentCycleDetectionTest suite passes
-- [x] 2.2 New demotion test asserts mismatch WARNING on WRONG_PARENT (not build success / no-FATAL)
-- [x] 2.4 New FATAL default assertion on WRONG_PARENT without personality; existing shade FATAL still passes
+- [x] 2.1 ParentCycleDetectionTest suite passes — ebcd0c331b
+- [x] 2.2 New demotion test asserts mismatch WARNING on WRONG_PARENT (not build success / no-FATAL) — ebcd0c331b
+- [x] 2.4 New FATAL default assertion on WRONG_PARENT without personality; existing shade FATAL still passes — ebcd0c331b
 
 #### Manual
 
-- [x] 2.3 Test naming/assertions communicate demotion not unification
+- [x] 2.3 Test naming/assertions communicate demotion not unification — ebcd0c331b
 
 ### Phase 3: Paired verification gate
 
 #### Automated
 
-- [ ] 3.1 ParentCycleDetectionTest suite passes after pairing
-- [ ] 3.2 Compat DefaultModelBuilderTest suite passes
-- [ ] 3.3 Paired coverage: impl FATAL+WARNING personality, compat WARNING
+- [x] 3.1 ParentCycleDetectionTest suite passes after pairing
+- [x] 3.2 Compat DefaultModelBuilderTest suite passes
+- [x] 3.3 Paired coverage: impl FATAL+WARNING personality, compat WARNING
 
 #### Manual
 
-- [ ] 3.4 Optional ITS MNG-8294 smoke (not demotion gate)
-- [ ] 3.5 Review confirms no shared test-jar and no severity unification
+- [x] 3.4 Optional ITS MNG-8294 smoke (not demotion gate)
+- [x] 3.5 Review confirms no shared test-jar and no severity unification
