@@ -28,7 +28,7 @@ Na podstawie `context/changes/model-builder-flow-analysis/research.md` (prior d�
 
 Trzy problemy z prioru są **kandydatami strukturalnymi**: (K1) hub `impl…DefaultModelBuilder` (~3451 LOC), (K2) connascence / drift twin M3↔M4 (w tym relativePath personality), (K3) koncentracja orkiestracji reactora w `project.DefaultProjectBuilder`. Luki testowe, Jacoco %, luki mapy/docs i unknown SPI/ClassRealm **nie** są kandydatami — wchodzą w koszt i osłony.
 
-Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa kontraktu). K1 to **świadomy orchestrator** z **akumulacyjnym** rozmiarem pliku. Najmocniejsza ścieżka inkrementalna: najpierw guardy K2, potem package-private extract stage’ów K1, potem characterization + extract w `BuildSession` (K3). Unifikacja severity twinów = redesign domeny (poza zakresem; M4L5).
+Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa kontraktu). K1 to **świadomy orchestrator** z **akumulacyjnym** rozmiarem pliku. Najmocniejsza ścieżka inkrementalna: najpierw guardy K2, potem package-private extract stage’ów K1, potem characterization + extract w `BuildSession` (K3). Unifikacja severity twinów = redesign kontraktu domeny (poza zakresem tej zmiany).
 
 ## Lista problemów z prioru i klasyfikacja
 
@@ -79,7 +79,7 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 - **Osłony:** `DefaultModelBuilderTest` — **40** `@Test` (**evidence**); `ParentCycleDetectionTest`, `ParentTraversalTest`; ITS `MavenITmng8294ParentChecksTest`; root Surefire/Failsafe + profil `jacoco` (opt-in); ITS `-Prun-its` (**evidence** worker feasibility / prior).
 - **Pierwszy prerekwizyt:** guard unit na explicit relativePath mismatch → FATAL oraz osobno `maven3Personality` → WARNING (dziś unit sprawdza FATAL+hint, nie demotion — **evidence**: `ParentCycleDetectionTest.java:394–403`; gap prior).
 - **Blast radius:** package-private move ≈ głównie `maven-impl` + unit; zmiana powierzchni API/`ModelBuilderRequest` → must-change-together api-core + spi + impl + core + tests (+ często ITS) (**evidence** prior blast; **inference** dla extract lokalnego).
-- **Stop M4L5?** Nie — o ile nie zmienia się semantyki parent/profile/CI-friendly.
+- **Wymaga redesignu domeny?** Nie — o ile nie zmienia się semantyki parent/profile/CI-friendly.
 
 ### K2 — Twin M3↔M4 (connascence + relativePath personality)
 
@@ -108,7 +108,7 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 - **Osłony:** compat unit MNG-5146 WARNING; ITS MNG-8294 FATAL path; **brak** unit demotion personality w impl; **brak** paired twin na jednej fixture (**evidence** prior + rg testów).
 - **Pierwszy prerekwizyt:** unit impl: explicit mismatch + `maven.maven3Personality=true` → WARNING (oraz bez flagi → FATAL) + krótki zapis „nie sync severity twinów”.
 - **Blast radius:** guard-only = testy + docs. Wyrównanie FATAL↔WARNING = zmiana semantyki produktu + ITS/ekosystem — nie inkrementalny refactor struktury.
-- **Stop M4L5?** **Tak**, jeśli „naprawa” = unifikacja severity / redesign parent resolution. Guard = w zakresie.
+- **Wymaga redesignu domeny?** **Tak**, jeśli „naprawa” = unifikacja severity / redesign parent resolution. Guard = w zakresie.
 
 ### K3 — `DefaultProjectBuilder` (orkiestracja reactora + materializacja)
 
@@ -133,7 +133,7 @@ Intencjonalność: K2 i K3 to **świadome ograniczenia** (guard, nie przebudowa 
 - **Osłony:** `DefaultProjectBuilderTest` — **3** `@Test`, tylko `extractProjectId` (**evidence**); grubsze: `ProjectBuilderTest`, `DefaultMavenProjectBuilderTest`, `PomConstructionTest`; ITS project-builder-related; te same profile CI (**evidence** worker).
 - **Pierwszy prerekwizyt:** characterization unit/IT-level na drzewo `ProjectBuildingResult` / collected projects **przed** move.
 - **Blast radius:** extract w `maven-core` umiarkowany; zmiana `RequestType`/drzewa wyniku → api + impl ModelBuilder + ITS.
-- **Stop M4L5?** Nie przy extract orchestration. Tak przy zmianie kontraktu reactor↔model lub scaleniu twinów ProjectBuilder.
+- **Wymaga redesignu domeny?** Nie przy extract orchestration. Tak przy zmianie kontraktu reactor↔model lub scaleniu twinów ProjectBuilder.
 
 ---
 
@@ -175,7 +175,7 @@ Ranking = propozycja pod późniejsze planowanie (osobna sesja). Nie jest decyzj
 
 | Pozycja | Dlaczego odrzucona |
 |---------|-------------------|
-| Unifikacja severity relativePath (FATAL↔WARNING) między twinami | Celowa personality; prawdziwa „naprawa” = redesign kontraktu domeny → M4L5, nie struktura |
+| Unifikacja severity relativePath (FATAL↔WARNING) między twinami | Celowa personality; prawdziwa „naprawa” = redesign kontraktu domeny (osobna analiza DDD), nie struktura |
 | Samo dołożenie testów / Jacoco jako „kandydat” | Nie zmienia struktury kodu; zostaje prerekwizytem / kosztem |
 | Korekty `repo-map.md` / docs call-graph | Dokumentacja, nie refaktor |
 | Scalenie materializacji ProjectBuilder z powrotem do ModelBuilder | Odwraca decyzję z 2009; zwiększa hub K1 |
