@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+import org.apache.maven.api.Constants;
 import org.apache.maven.api.Session;
 import org.apache.maven.api.services.BuilderProblem;
 import org.apache.maven.api.services.ModelBuilder;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -401,5 +403,154 @@ class ParentCycleDetectionTest {
         assertTrue(
                 hasFatalWithHint,
                 "Expected a FATAL about the wrong relativePath with a -Dmaven.maven3Personality hint");
+    }
+
+    /**
+     * MNG-5146 / WRONG_PARENT layout (compat SoT): explicit {@code <relativePath>} pointing at a POM
+     * with a different GA must be FATAL by default in impl (not demoted, not unified with compat WARNING).
+     */
+    @Test
+    void testExplicitRelativePathGaMismatchIsFatalByDefault(@TempDir Path tempDir) throws IOException {
+        Path childPom = writeWrongParentExplicitRelativePathLayout(tempDir);
+
+        ModelBuilderRequest request = ModelBuilderRequest.builder()
+                .session(session)
+                .source(Sources.buildSource(childPom))
+                .requestType(ModelBuilderRequest.RequestType.BUILD_PROJECT)
+                .build();
+
+        ModelBuilderResult result;
+        try {
+            result = modelBuilder.newSession().build(request);
+        } catch (ModelBuilderException e) {
+            result = e.getResult();
+        }
+
+        assertNotNull(result);
+
+        boolean hasFatalMismatch = Stream.concat(Stream.of(result), result.getChildren().stream())
+                .flatMap(r -> r.getProblemCollector().problems())
+                .anyMatch(p -> p.getSeverity() == BuilderProblem.Severity.FATAL
+                        && p.getMessage().contains("'parent.relativePath'")
+                        && p.getMessage().contains("../pom.xml"));
+        assertTrue(
+                hasFatalMismatch,
+                "Expected a FATAL for explicit relativePath GA mismatch without maven3Personality; got: "
+                        + collectProblems(result));
+
+        boolean hasWarningMismatch = Stream.concat(Stream.of(result), result.getChildren().stream())
+                .flatMap(r -> r.getProblemCollector().problems())
+                .anyMatch(p -> p.getSeverity() == BuilderProblem.Severity.WARNING
+                        && p.getMessage().contains("'parent.relativePath'")
+                        && p.getMessage().contains("../pom.xml"));
+        assertFalse(
+                hasWarningMismatch,
+                "Default mode must not demote explicit relativePath GA mismatch to WARNING; got: "
+                        + collectProblems(result));
+    }
+
+    /**
+     * Personality demotion (not severity unification): same WRONG_PARENT explicit-relativePath layout
+     * with {@code maven.maven3Personality=true} must report the GA mismatch as WARNING.
+     * Does not require a successful build — without a ModelResolver, Non-resolvable parent may still
+     * be FATAL after the mismatch is demoted.
+     */
+    @Test
+    void testExplicitRelativePathGaMismatchDemotedToWarningWithMaven3Personality(@TempDir Path tempDir)
+            throws IOException {
+        Path childPom = writeWrongParentExplicitRelativePathLayout(tempDir);
+
+        String previous = System.getProperty(Constants.MAVEN_MAVEN3_PERSONALITY);
+        try {
+            System.setProperty(Constants.MAVEN_MAVEN3_PERSONALITY, "true");
+            // ApiRunner snapshots System properties into config at create time; recreate session.
+            session = ApiRunner.createSession();
+            modelBuilder = session.getService(ModelBuilder.class);
+            assertNotNull(modelBuilder);
+
+            ModelBuilderRequest request = ModelBuilderRequest.builder()
+                    .session(session)
+                    .source(Sources.buildSource(childPom))
+                    .requestType(ModelBuilderRequest.RequestType.BUILD_PROJECT)
+                    .build();
+
+            ModelBuilderResult result;
+            try {
+                result = modelBuilder.newSession().build(request);
+            } catch (ModelBuilderException e) {
+                result = e.getResult();
+            }
+
+            assertNotNull(result);
+
+            boolean hasWarningMismatch = Stream.concat(Stream.of(result), result.getChildren().stream())
+                    .flatMap(r -> r.getProblemCollector().problems())
+                    .anyMatch(p -> p.getSeverity() == BuilderProblem.Severity.WARNING
+                            && p.getMessage().contains("'parent.relativePath'")
+                            && p.getMessage().contains("../pom.xml"));
+            assertTrue(
+                    hasWarningMismatch,
+                    "Expected mismatch demoted to WARNING under maven3Personality; got: " + collectProblems(result));
+
+            boolean hasFatalMismatch = Stream.concat(Stream.of(result), result.getChildren().stream())
+                    .flatMap(r -> r.getProblemCollector().problems())
+                    .anyMatch(p -> p.getSeverity() == BuilderProblem.Severity.FATAL
+                            && p.getMessage().contains("'parent.relativePath'")
+                            && p.getMessage().contains("../pom.xml"));
+            assertFalse(
+                    hasFatalMismatch,
+                    "Personality must demote the relativePath GA mismatch (FATAL must not remain for that problem);"
+                            + " got: " + collectProblems(result));
+        } finally {
+            if (previous != null) {
+                System.setProperty(Constants.MAVEN_MAVEN3_PERSONALITY, previous);
+            } else {
+                System.clearProperty(Constants.MAVEN_MAVEN3_PERSONALITY);
+            }
+        }
+    }
+
+    /**
+     * Compat MNG-5146 WRONG_PARENT layout: {@code tempDir/pom.xml} has wrong GA;
+     * {@code tempDir/child/pom.xml} declares parent {@code mygroup:myparent:1.0} with
+     * explicit {@code <relativePath>../pom.xml</relativePath>}.
+     */
+    private static Path writeWrongParentExplicitRelativePathLayout(Path tempDir) throws IOException {
+        Files.createDirectories(tempDir.resolve(".mvn"));
+
+        Path wrongParentPom = tempDir.resolve("pom.xml");
+        Files.writeString(wrongParentPom, """
+            <project>
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>wrong</groupId>
+              <artifactId>wrong</artifactId>
+              <version>1.0</version>
+              <packaging>pom</packaging>
+            </project>
+            """);
+
+        Path childDir = Files.createDirectory(tempDir.resolve("child"));
+        Path childPom = childDir.resolve("pom.xml");
+        Files.writeString(childPom, """
+            <project>
+              <modelVersion>4.0.0</modelVersion>
+              <parent>
+                <groupId>mygroup</groupId>
+                <artifactId>myparent</artifactId>
+                <version>1.0</version>
+                <relativePath>../pom.xml</relativePath>
+              </parent>
+              <artifactId>mychild</artifactId>
+            </project>
+            """);
+        return childPom;
+    }
+
+    private static String collectProblems(ModelBuilderResult result) {
+        return Stream.concat(Stream.of(result), result.getChildren().stream())
+                .flatMap(r -> r.getProblemCollector().problems())
+                .map(p -> p.getSeverity() + ": " + p.getMessage())
+                .reduce((a, b) -> a + "; " + b)
+                .orElse("(no problems)");
     }
 }

@@ -206,24 +206,24 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 
 #### Automated
 
-- [x] 1.1 Contract note file exists with FATAL/WARNING/compat rules
-- [x] 1.2 Production diff is comment-only in DefaultModelBuilder
+- [x] 1.1 Contract note file exists with FATAL/WARNING/compat rules — 9d643a181c
+- [x] 1.2 Production diff is comment-only in DefaultModelBuilder — 9d643a181c
 
 #### Manual
 
-- [x] 1.3 Contract wording matches research intentionality verdict
+- [x] 1.3 Contract wording matches research intentionality verdict — 9d643a181c
 
 ### Phase 2: Demotion unit (impl)
 
 #### Automated
 
-- [ ] 2.1 ParentCycleDetectionTest suite passes
-- [ ] 2.2 New demotion test asserts mismatch WARNING on WRONG_PARENT (not build success / no-FATAL)
-- [ ] 2.4 New FATAL default assertion on WRONG_PARENT without personality; existing shade FATAL still passes
+- [x] 2.1 ParentCycleDetectionTest suite passes
+- [x] 2.2 New demotion test asserts mismatch WARNING on WRONG_PARENT (not build success / no-FATAL)
+- [x] 2.4 New FATAL default assertion on WRONG_PARENT without personality; existing shade FATAL still passes
 
 #### Manual
 
-- [ ] 2.3 Test naming/assertions communicate demotion not unification
+- [x] 2.3 Test naming/assertions communicate demotion not unification
 
 ### Phase 3: Paired verification gate
 
