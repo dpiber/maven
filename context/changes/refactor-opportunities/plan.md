@@ -51,7 +51,7 @@ Utrwalić w kodzie i w folderze zmiany, że rozjazd FATAL (impl) vs WARNING (com
 
 **File**: `impl/maven-impl/src/main/java/org/apache/maven/impl/model/DefaultModelBuilder.java`
 
-**Intent**: Dodać 1–3 linie komentarza przy `mismatchRelativePathAndGA` (lub bezpośrednio nad logiką `warn = defaultPath || maven3Mode`), że compat twin pozostaje WARNING oraz że personality demotuje do WARNING; nie unifikować severity.
+**Intent**: Rozszerzyć istniejący komentarz przy `warn = defaultPath || maven3Mode` (już opisuje WARNING/FATAL + personality) o 1–2 linie: compat twin pozostaje WARNING; nie unifikować severity. Nie dokładać drugiego równoległego bloku.
 
 **Contract**: Komentarz tylko; brak zmiany warunków, severity, komunikatów ani sygnatury metody.
 
@@ -101,7 +101,8 @@ Dodać unit: explicit relativePath GA mismatch + `maven.maven3Personality=true` 
 #### Automated Verification:
 
 - `mvn test -pl impl/maven-impl -am -Dtest=ParentCycleDetectionTest` przechodzi
-- Nowy test asertuje mismatch WARNING przy personality (nie wymaga sukcesu builda / braku FATAL); istniejący FATAL+hint bez flagi nadal przechodzi
+- Nowy test (WRONG_PARENT): FATAL mismatch bez personality oraz WARNING przy personality (nie wymaga sukcesu builda / braku FATAL po demotion)
+- Istniejący shade FATAL+hint nadal przechodzi
 
 #### Manual Verification:
 
@@ -217,7 +218,8 @@ Brak migracji danych / API. Revert = revert PR (testy + komentarz + notatka).
 #### Automated
 
 - [ ] 2.1 ParentCycleDetectionTest suite passes
-- [ ] 2.2 New demotion test asserts mismatch WARNING (not build success / no-FATAL); existing FATAL test still passes
+- [ ] 2.2 New demotion test asserts mismatch WARNING on WRONG_PARENT (not build success / no-FATAL)
+- [ ] 2.4 New FATAL default assertion on WRONG_PARENT without personality; existing shade FATAL still passes
 
 #### Manual
 

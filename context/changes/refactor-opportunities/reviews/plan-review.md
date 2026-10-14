@@ -1,36 +1,63 @@
 <!-- PLAN-REVIEW-REPORT -->
 # Plan Review: K2 twin personality guards
 
-- **Plan**: `context/changes/refactor-opportunities/plan.md`
+- **Plan**: context/changes/refactor-opportunities/plan.md
 - **Mode**: Deep
 - **Date**: 2026-10-14
-- **Verdict**: SOUND (after triage)
-- **Findings**: 0 critical 1 warning 0 observations (1 FIXED)
+- **Verdict**: SOUND (after triage; was REVISE)
+- **Findings**: 0 critical 1 warnings 1 observations
 
 ## Verdicts
 
 | Dimension | Verdict |
 |-----------|---------|
-| End-State Alignment | PASS |
-| Lean Execution | PASS |
+| End-State Alignment | PASS (was WARNING; F1 fixed) |
+| Lean Execution | PASS (F2 fixed) |
 | Architectural Fitness | PASS |
 | Blind Spots | PASS |
-| Plan Completeness | WARNING → PASS (F1 fixed) |
+| Plan Completeness | PASS (was WARNING; F1 fixed) |
 
 ## Grounding
 
-5/5 paths ✓, 6/6 symbols ✓, brief↔plan ✓ (after F1)
+Grounding: 5/5 paths ✓, 5/5 symbols ✓, brief↔plan ✓
 
-Paths exist: impl/compat `DefaultModelBuilder`, `ParentCycleDetectionTest`, compat `DefaultModelBuilderTest`, ITS `MavenITmng8294ParentChecksTest`. Symbols: `mismatchRelativePathAndGA` (`:1324`), `Constants.MAVEN_MAVEN3_PERSONALITY`, `Features.mavenMaven3Personality` ← configProperties, FATAL unit `:336–403`, MNG-5146 WRONG_PARENT, no demotion unit yet. Progress↔Phase criteria match. Prior triage fixes (configProperties wiring, WRONG_PARENT SoT, demotion assertion without build success) remain in the plan body.
+Deep verification confirmed: System property → ApiRunner → configProperties → Features.mavenMaven3Personality; userProperties anti-pattern; post-demotion Non-resolvable parent FATAL without ParentProvidingResolver; WRONG_PARENT SoT only in compat; mismatchRelativePathAndGA callers local only.
 
 ## Findings
 
-### F1 — plan-brief.md still describes Phase 3 as fixture copy
+### F1 — FATAL default na WRONG_PARENT nie jest w Success Criteria / Progress
 
 - **Severity**: ⚠️ WARNING
+- **Impact**: 🔎 MEDIUM — real tradeoff; pause to reason through it
+- **Dimension**: End-State Alignment / Plan Completeness
+- **Location**: Phase 2 — Changes Required vs Success Criteria / Progress 2.2; Phase 3 — paired coverage 3.3
+- **Detail**: Phase 2 Changes Required każe dodać FATAL (default) + demotion WARNING na layoutcie WRONG_PARENT (SoT = MNG-5146). Success Criteria i Progress 2.2 wymagały tylko: nowy test asertuje WARNING + „istniejący FATAL+hint (shade) nadal przechodzi”. Phase 3 mówi wprost, że shade jest poza kanoniczną parą, a para ma pokrywać „impl FATAL (default) + WARNING (personality)” — bez nowego FATAL na WRONG_PARENT implementer mógł domknąć checkboxy, a kanoniczna para pozostałaby dziurawa.
+- **Fix A ⭐ Recommended**: Dopisać do Phase 2 Success Criteria + Progress krok asertujący FATAL mismatch na WRONG_PARENT bez personality (obok demotion WARNING).
+  - Strength: Zamyka lukę między Changes / Desired End State / Phase 3 a toolingiem `/10x-implement`; para staje się jednoznaczna.
+  - Tradeoff: Jeden dodatkowy test (lub dwa scenariusze) zamiast samego demotion.
+  - Confidence: HIGH — layout i asercja FATAL już istnieją po stronie shade i compat; kod demotion potwierdzony (DefaultModelBuilder.java:1361–1362).
+  - Blind spot: None significant.
+- **Fix B**: Osłabić Phase 2 Changes / Phase 3 wording — kanoniczna para = shade FATAL + WRONG_PARENT WARNING + compat MNG-5146.
+  - Strength: Mniej kodu w Phase 2; shade już jest.
+  - Tradeoff: Sprzeczne z własnym „shade poza kanoniczną parą” i ze SoT = WRONG_PARENT; para porównuje różne layouty.
+  - Confidence: LOW — podważa decyzję planu o SoT.
+  - Blind spot: Czy review/research nadal akceptuje mieszaną parę.
+- **Decision**: FIXED via Fix A
+
+### F2 — Komentarz personality już istnieje przy warn=
+
+- **Severity**: 💡 OBSERVATION
 - **Impact**: 🏃 LOW — quick decision; fix is obvious and narrowly scoped
-- **Dimension**: Plan Completeness
-- **Location**: plan-brief.md — Scope / Phases at a Glance
-- **Detail**: Plan body has Phase 3 = Paired verification gate (WRONG_PARENT SoT in Phase 2, zero new code). Brief still said “Paired fixture layout (skopiowany)” and Phase 3 drift risk — misleading entry point.
-- **Fix**: Sync brief with plan: Phase 3 = verification gate; In scope = demotion on WRONG_PARENT in ParentCycleDetectionTest + review pair with existing MNG-5146 (no shared test-jar / no copy into compat).
+- **Dimension**: Lean Execution
+- **Location**: Phase 1 — Code comment at mismatchRelativePathAndGA
+- **Detail**: Przy `warn = defaultPath || maven3Mode` jest już komentarz (DefaultModelBuilder.java:1358–1360) o WARNING przy defaultPath / personality i FATAL przy explicit mismatch. Brakuje tylko half „compat twin = WARNING / nie unifikować severity”.
+- **Fix**: Rozszerzyć istniejący blok o twin/compat + „do not unify”, zamiast dokładać drugi równoległy komentarz.
 - **Decision**: FIXED
+
+## Triage summary
+
+- Fixed: F1 (Fix A), F2
+- Skipped: —
+- Accepted: —
+- Dismissed: —
+- Verdict after fixes: REVISE → SOUND
